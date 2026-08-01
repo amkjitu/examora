@@ -17,14 +17,26 @@ tests; Docker infrastructure; CI.
 ### 1. Real question corpus (blocking everything)
 
 Nothing downstream is trustworthy until this is done. Star ratings, expected
-question counts and readiness scores are all functions of `past_questions`.
+question counts, readiness and the forecast are all functions of
+`past_questions`.
+
+**The tooling for this now exists** — see [`corpus.md`](corpus.md):
+
+- `examora:import` — bulk CSV/JSON import, dry run by default, every rejection
+  reported with its line number
+- `examora:corpus-health` — diagnoses what is wrong and exits non-zero when the
+  corpus is not fit to score
+
+What remains is not a coding problem:
 
 - Source and license BCS past papers, ideally 20+ years
 - Verify answers and explanations against an authoritative source
-- Replace `BcsPreliminarySeeder`'s question set
-- Re-run `examora:bootstrap` and sanity-check the resulting rankings against what
-  experienced BCS coaches would say — if the top ten chapters look wrong to a
-  coach, the scorer weights need tuning, not the coach
+- Import, then resolve everything `corpus-health` calls fatal
+- Sanity-check the resulting rankings against what experienced BCS coaches would
+  say — if the top ten chapters look wrong to a coach, the scorer weights need
+  tuning, not the coach
+- Check the backtest Brier score against the 0.25 baseline before showing the
+  forecast to anyone
 
 ### ~~2. Document ingestion~~ — done
 

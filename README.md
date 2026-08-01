@@ -133,6 +133,7 @@ stars, and a content editor must be able to argue with it.
 | [`docs/prediction.md`](docs/prediction.md) | The forecast model, its assumptions, and how it is backtested |
 | [`docs/api.md`](docs/api.md) | Endpoint reference |
 | [`docs/testing.md`](docs/testing.md) | How to run the suite, and a manual walkthrough of every feature |
+| [`docs/corpus.md`](docs/corpus.md) | Importing a real question bank, and checking it is fit to score |
 | [`docs/decisions.md`](docs/decisions.md) | Decision log, including deviations from the original plan |
 | [`docs/roadmap.md`](docs/roadmap.md) | What is built, what is next, in what order |
 
