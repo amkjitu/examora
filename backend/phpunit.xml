@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<phpunit xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:noNamespaceSchemaLocation="https://schema.phpunit.de/10.3/phpunit.xsd"
+         bootstrap="tests/bootstrap.php"
+         colors="true"
+>
+    <testsuites>
+        <testsuite name="Unit">
+            <directory suffix="Test.php">./tests/Unit</directory>
+        </testsuite>
+        <testsuite name="Feature">
+            <directory suffix="Test.php">./tests/Feature</directory>
+        </testsuite>
+    </testsuites>
+    <php>
+        <env name="APP_ENV" value="testing"/>
+        <!-- Ignition renders a multi-megabyte HTML error page per failure and
+             exhausts PHP's memory limit mid-suite, hiding the real failures
+             behind a fatal error. The plain renderer keeps assertion output
+             readable. -->
+        <env name="APP_DEBUG" value="false"/>
+        <env name="BCRYPT_ROUNDS" value="4"/>
+        <env name="CACHE_STORE" value="array"/>
+        <!-- A file-backed SQLite database, migrated and seeded by
+             tests/bootstrap.php before PHPUnit starts, so Wave's boot-time
+             theme and settings lookups succeed. Not in-memory: Wave reads the
+             database during service-provider boot, which happens before any
+             test could migrate it.
+
+             The pgvector column and HNSW index are branched on driver in the
+             knowledge_chunks migration, and retrieval falls back to an in-PHP
+             cosine scan. Run `DB_CONNECTION=pgsql php artisan test` against a
+             scratch Postgres database before release to exercise the vector
+             path itself. -->
+        <env name="DB_CONNECTION" value="sqlite"/>
+        <env name="DB_DATABASE" value="database/testing.sqlite"/>
+        <!-- Test-only JWT key. Must be >= 256 bits for HS256. -->
+        <env name="JWT_SECRET" value="ZXhhbW9yYS10ZXN0aW5nLWtleS1kby1ub3QtdXNlLWluLXByb2R1Y3Rpb24tMzJi"/>
+        <env name="AI_DEFAULT_PROVIDER" value="mock"/>
+        <env name="AI_FALLBACK_PROVIDER" value="mock"/>
+        <env name="AI_CACHE_TTL" value="0"/>
+        <env name="MAIL_MAILER" value="array"/>
+        <env name="QUEUE_CONNECTION" value="sync"/>
+        <env name="SESSION_DRIVER" value="array"/>
+        <env name="TELESCOPE_ENABLED" value="false"/>
+    </php>
+    <source>
+        <include>
+            <directory suffix=".php">./app</directory>
+        </include>
+    </source>
+</phpunit>

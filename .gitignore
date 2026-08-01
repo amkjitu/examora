@@ -1,0 +1,43 @@
+# Examora — repository-wide ignores.
+# backend/ and web/ carry their own framework .gitignore files as well.
+
+# ---------------------------------------------------------------------------
+# Secrets. Nothing matching these may ever be committed.
+# ---------------------------------------------------------------------------
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+auth.json
+
+# ---------------------------------------------------------------------------
+# Dependencies and build output
+# ---------------------------------------------------------------------------
+node_modules/
+vendor/
+dist/
+build/
+
+# ---------------------------------------------------------------------------
+# Local databases and runtime state
+# ---------------------------------------------------------------------------
+*.sqlite
+*.sqlite-journal
+backend/storage/framework/cache/*
+backend/storage/framework/sessions/*
+backend/storage/framework/views/*
+backend/storage/logs/*
+backend/public/storage
+backend/public/vendor
+
+# ---------------------------------------------------------------------------
+# Editors and OS
+# ---------------------------------------------------------------------------
+.DS_Store
+Thumbs.db
+*.log
+.idea/
+.vscode/
+.fleet/
+*.swp

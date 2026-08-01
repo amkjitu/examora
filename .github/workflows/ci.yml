@@ -1,0 +1,137 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  backend:
+    name: Backend (PHP ${{ matrix.php }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        php: ['8.2', '8.3']
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          extensions: mbstring, gd, exif, pdo_sqlite, pdo_pgsql, redis, bcmath
+          coverage: none
+          tools: composer:v2
+
+      - name: Cache Composer packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.composer/cache
+          key: composer-${{ matrix.php }}-${{ hashFiles('backend/composer.lock') }}
+          restore-keys: composer-${{ matrix.php }}-
+
+      - name: Install dependencies
+        working-directory: backend
+        run: composer install --prefer-dist --no-interaction --no-progress
+
+      - name: Prepare environment
+        working-directory: backend
+        run: |
+          cp .env.example .env 2>/dev/null || true
+          php artisan key:generate --ansi
+          php artisan jwt:secret --force --ansi
+
+      - name: Lint
+        working-directory: backend
+        run: ./vendor/bin/pint --test
+
+      # The suite runs on the SQLite database that tests/bootstrap.php builds,
+      # so no service containers are needed here. The pgvector path is covered
+      # by the postgres job below.
+      - name: Test
+        working-directory: backend
+        run: php artisan test
+
+  backend-postgres:
+    name: Backend (PostgreSQL + pgvector)
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_DB: examora_test
+          POSTGRES_USER: examora
+          POSTGRES_PASSWORD: secret
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U examora"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mbstring, gd, exif, pdo_pgsql, bcmath
+          coverage: none
+          tools: composer:v2
+
+      - name: Install dependencies
+        working-directory: backend
+        run: composer install --prefer-dist --no-interaction --no-progress
+
+      - name: Prepare environment
+        working-directory: backend
+        run: |
+          cp .env.example .env 2>/dev/null || true
+          php artisan key:generate --ansi
+          php artisan jwt:secret --force --ansi
+
+      # Exercises the real vector column, the HNSW index and the pgvector
+      # cosine search that the SQLite fallback stands in for elsewhere.
+      - name: Migrate, seed and bootstrap against pgvector
+        working-directory: backend
+        env:
+          DB_CONNECTION: pgsql
+          DB_HOST: 127.0.0.1
+          DB_PORT: 5432
+          DB_DATABASE: examora_test
+          DB_USERNAME: examora
+          DB_PASSWORD: secret
+          AI_DEFAULT_PROVIDER: mock
+        run: |
+          php artisan migrate --force
+          php artisan db:seed --force
+          php artisan db:seed --class=BcsPreliminarySeeder --force
+          php artisan examora:bootstrap
+
+  frontend:
+    name: Frontend
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Install dependencies
+        working-directory: web
+        run: npm ci
+
+      - name: Lint
+        working-directory: web
+        run: npm run lint
+
+      # tsc runs as part of the build, so this type-checks and bundles.
+      - name: Build
+        working-directory: web
+        run: npm run build
