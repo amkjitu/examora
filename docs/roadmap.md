@@ -7,7 +7,7 @@ micro-lesson grounded only in indexed past questions → MCQ check with
 explanations → SM-2 scheduling → daily plan and readiness on the dashboard.
 
 Plus: AI gateway with four providers, routing, fallback, caching and a cost
-ledger; pgvector RAG with a portable fallback; free-tier metering; 172 passing
+ledger; pgvector RAG with a portable fallback; tiered entitlements; 262 passing
 tests; Docker infrastructure; CI.
 
 ---
@@ -91,9 +91,14 @@ built API-first. Offline lesson caching matters for this audience.
 
 ### 7. Payments go-live
 
-Wave ships Stripe and Paddle. Needs: real plans, pricing appropriate to
-Bangladesh, local payment methods (bKash/Nagad — likely a custom driver), and the
-subscription gates verified end to end.
+**Feature gating is done** — tiers, entitlements and gates are built and tested
+in both directions. See [`saas.md`](saas.md).
+
+What remains is taking money: real Stripe products and price IDs (the seeded
+ones are `dummy_*`), live keys, webhook verification, pricing considered for
+Bangladesh rather than Wave's $5/$8/$12 defaults, and a bKash/Nagad driver.
+Neither is supported by Cashier, so that last one is a custom integration and
+probably the largest single piece.
 
 ---
 

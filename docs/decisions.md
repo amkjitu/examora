@@ -353,6 +353,53 @@ surfaced — silently hiding the one case most worth catching.
 
 ---
 
+## D27 — Entitlements are named features, not subscription checks
+
+Nothing asks "is this user subscribed?". It asks whether they are entitled to a
+named feature, resolved in one place from config.
+
+This was written after discovering that mock exams, the AI tutor, the forecast
+and document upload had all shipped **completely ungated** — built, then never
+paywalled, because the check was always somebody's later job. Only lesson
+generation was metered. A free user had the entire product.
+
+Scattered subscription checks fail by omission, and omission is silent. A single
+entitlement map fails loudly, and `EntitlementsTest` asserts every gate in both
+directions so a new premium feature cannot ship open by accident.
+
+---
+
+## D28 — What costs money to serve is what gets gated
+
+Revision, practice, the chapter rankings and the topic forecast stay free at any
+volume: they cost nothing per call, and the ranking is the clearest argument for
+paying. The AI tutor and document ingestion carry real per-call LLM spend; mock
+exams and repeat candidates are the highest-value output. Those are premium.
+
+Three carve-outs, each because the alternative would be indefensible:
+
+- Reading your own uploads is never gated, only creating new ones.
+- Finishing a quiz is never gated, only starting a mock — a plan lapsing
+  mid-exam must not lose the paper.
+- An unrecognised plan name grants premium. A paying customer must never be
+  worse off because a plan was renamed.
+
+---
+
+## D29 — Public routes resolve an optional token
+
+Found while testing the gates: `exams/{exam}/topics` and the forecast are public
+by design, and public routes had no way to resolve a bearer token. So
+`$request->user()` was null even for a signed-in caller, and the chapter list
+reported **0% mastery to every student**. Because the UI only renders mastery
+above zero, it looked like a feature that had never been built.
+
+`jwt.optional` authenticates when a token is present and leaves the request
+anonymous when it is absent or malformed. Fails open, because that is what
+"optional" has to mean.
+
+---
+
 ## Open questions
 
 - **Question corpus licensing.** The seeded questions are representative sample

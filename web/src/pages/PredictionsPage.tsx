@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom'
 import { api } from '@/lib/api'
 import type { Me, Predictions } from '@/lib/types'
 import { Card, ErrorNote, Progress, Spinner } from '@/components/ui'
+import { Locked } from '@/components/Locked'
 
 export default function PredictionsPage() {
   const [tab, setTab] = useState<'topics' | 'repeats'>('topics')
@@ -82,7 +83,12 @@ export default function PredictionsPage() {
         {(
           [
             ['topics', `Topic forecast (${data.topics.length})`],
-            ['repeats', `Likely repeats (${data.repeat_candidates.length})`],
+            [
+              'repeats',
+              data.repeat_candidates_locked
+                ? 'Likely repeats'
+                : `Likely repeats (${data.repeat_candidates.length})`,
+            ],
           ] as const
         ).map(([value, label]) => (
           <button
@@ -184,7 +190,15 @@ export default function PredictionsPage() {
             </p>
           </Card>
 
-          {data.repeat_candidates.length === 0 ? (
+          {data.repeat_candidates_locked ? (
+            <div className="mt-3">
+              <Locked title="Likely repeat questions">
+                The exact questions this exam has already reused word for word, with their answers
+                and how often each has come back. Repeats are the highest-value thing to memorise,
+                and finding them needs the full past-paper archive.
+              </Locked>
+            </div>
+          ) : data.repeat_candidates.length === 0 ? (
             <Card className="mt-3">
               <p className="text-sm text-ink-600">
                 No question in the bank has repeated yet, so there is nothing to go on.

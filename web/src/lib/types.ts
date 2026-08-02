@@ -61,6 +61,7 @@ export type Predictions = {
     signals: Record<string, unknown>
     mastery: number
   }[]
+  repeat_candidates_locked: boolean
   repeat_candidates: {
     past_question_id: number
     stem: string
@@ -318,6 +319,40 @@ export type ExtractedQuestionPreview = {
   topic: { id: number; name: string } | null
 }
 
+export type FeatureKey =
+  | 'chapter_rankings'
+  | 'lessons'
+  | 'practice'
+  | 'revision'
+  | 'daily_plan'
+  | 'readiness'
+  | 'forecast_topics'
+  | 'mock_exam'
+  | 'ai_tutor'
+  | 'repeat_candidates'
+  | 'document_upload'
+
+export type Limit = {
+  /** Null means unlimited. */
+  limit: number | null
+  used: number
+  remaining: number | null
+  resets_at: string
+}
+
+export type Entitlements = {
+  tier: string
+  label: string
+  is_premium: boolean
+  on_trial: boolean
+  upgrade_url: string
+  features: Record<FeatureKey, boolean>
+  limits: {
+    lessons_per_day: Limit
+    documents_per_month: Limit
+  }
+}
+
 export type Me = {
   id: number
   name: string
@@ -325,7 +360,9 @@ export type Me = {
   username: string
   avatar: string | null
   subscription: { is_premium: boolean; on_trial: boolean; plan: string | null }
-  quota: { free_lessons_per_day: number; used_today: number; remaining: number | null }
+  entitlements: Entitlements
+  /** Superseded by `entitlements.limits`; kept for older clients. */
+  quota: { free_lessons_per_day: number | null; used_today: number; remaining: number | null }
   active_enrollment: {
     exam: { id: number; name: string; slug: string }
     target_session: string | null

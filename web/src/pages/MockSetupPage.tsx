@@ -4,6 +4,8 @@ import { useNavigate } from 'react-router-dom'
 import { api } from '@/lib/api'
 import type { Exam, ExamMode, QuizSession } from '@/lib/types'
 import { Button, Card, ErrorNote, Spinner } from '@/components/ui'
+import { Locked } from '@/components/Locked'
+import { useEntitlements } from '@/lib/entitlements'
 
 const LENGTHS = [
   { count: 25, label: 'Quick', hint: 'A quarter paper' },
@@ -14,6 +16,7 @@ const LENGTHS = [
 export default function MockSetupPage() {
   const navigate = useNavigate()
 
+  const { can } = useEntitlements()
   const [mode, setMode] = useState<ExamMode>('strict')
   const [count, setCount] = useState(50)
 
@@ -47,6 +50,19 @@ export default function MockSetupPage() {
   })
 
   if (loadingMe || loadingExam) return <Spinner label="Loading" />
+
+  // Locked before anything is rendered, not after a request comes back 402.
+  if (!can('mock_exam')) {
+    return (
+      <div className="mx-auto max-w-2xl px-5 py-10">
+        <Locked title="Mock exams">
+          A full timed paper under real exam conditions — server-held clock, negative marking,
+          answer-sheet grid — then an analysis of where the marks went, where your time went, and
+          what to fix before the next one. The only way to practise pacing.
+        </Locked>
+      </div>
+    )
+  }
 
   if (!exam) {
     return (

@@ -7,7 +7,9 @@ use Tests\Examora;
 use Tymon\JWTAuth\Facades\JWTAuth;
 
 beforeEach(function () {
-    config(['examora.free_lessons_per_day' => 2]);
+    // The allowance lives in the tier definition now, not a standalone key, so
+    // pricing policy sits in one readable place.
+    config(['examora.tiers.free.limits.lessons_per_day' => 2]);
 
     $this->exam = Examora::exam();
     $this->topic = Examora::populatedTopic($this->exam);

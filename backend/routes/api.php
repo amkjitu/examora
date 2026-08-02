@@ -32,12 +32,21 @@ Route::middleware('auth:api')->get('/user', fn () => auth()->user());
 
 Route::prefix('v1')->group(function () {
 
-    // Public: the exam catalogue is marketing surface as much as product.
-    Route::get('exams', [ExamController::class, 'index']);
-    Route::get('exams/{exam}', [ExamController::class, 'show']);
-    Route::get('exams/{exam}/topics', [ExamController::class, 'topics']);
-    Route::get('exams/{exam}/predictions', [PredictionController::class, 'index']);
-    Route::get('exams/{exam}/predictions/backtest', [PredictionController::class, 'backtest']);
+    // Public: the exam catalogue and the rankings are marketing surface as much
+    // as product — seeing them is the strongest argument for signing up.
+    //
+    // `jwt.optional` resolves the caller when a token is present without
+    // requiring one, so these routes still personalise (mastery per chapter,
+    // entitlements on the forecast) for a signed-in visitor. Without it
+    // `$request->user()` is null here even with a valid token, and the
+    // personalisation silently never appears.
+    Route::middleware('jwt.optional')->group(function () {
+        Route::get('exams', [ExamController::class, 'index']);
+        Route::get('exams/{exam}', [ExamController::class, 'show']);
+        Route::get('exams/{exam}/topics', [ExamController::class, 'topics']);
+        Route::get('exams/{exam}/predictions', [PredictionController::class, 'index']);
+        Route::get('exams/{exam}/predictions/backtest', [PredictionController::class, 'backtest']);
+    });
 
     Route::middleware('auth:api')->group(function () {
         Route::get('me', [MeController::class, 'show']);
@@ -52,19 +61,30 @@ Route::prefix('v1')->group(function () {
             ->middleware('lesson.quota');
         Route::post('lessons/{lesson}/complete', [LessonController::class, 'complete']);
 
+        // Starting a quiz is gated per type inside the controller — practice and
+        // revision are free on every plan, mock exams are not. Answering and
+        // reviewing an existing session is never gated: a student who started a
+        // paper must be able to finish it, even if their plan lapses mid-exam.
         Route::post('quizzes', [QuizController::class, 'start']);
         Route::get('quizzes/{session}', [QuizController::class, 'show']);
         Route::post('quizzes/{session}/answer', [QuizController::class, 'answer']);
         Route::post('quizzes/{session}/complete', [QuizController::class, 'complete']);
         Route::get('quizzes/{session}/analysis', [QuizController::class, 'analysis']);
 
-        Route::post('tutor/ask', [TutorController::class, 'ask']);
+        // Real per-call LLM cost.
+        Route::post('tutor/ask', [TutorController::class, 'ask'])
+            ->middleware('feature:ai_tutor');
 
         // Uploads are always private. Promotion into the shared question bank is
         // an admin action in the Filament review queue, never an API parameter.
+        //
+        // Ingestion carries real per-page LLM cost, so uploading is premium —
+        // but listing and reading what you already uploaded is not. Locking
+        // someone out of their own data on downgrade would be indefensible.
         Route::get('documents', [DocumentController::class, 'index']);
         Route::get('my-questions', [DocumentController::class, 'myQuestions']);
-        Route::post('documents', [DocumentController::class, 'store']);
+        Route::post('documents', [DocumentController::class, 'store'])
+            ->middleware('feature:document_upload');
         Route::get('documents/{document}', [DocumentController::class, 'show']);
         Route::delete('documents/{document}', [DocumentController::class, 'destroy']);
     });

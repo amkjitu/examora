@@ -3,7 +3,7 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
-use App\Models\Examora\LearningEvent;
+use App\Support\Entitlements;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -14,11 +14,7 @@ class MeController extends Controller
         $user = $request->user();
         $enrollment = $user->activeEnrollment()->with('exam')->first();
 
-        $freeLimit = (int) config('examora.free_lessons_per_day');
-        $usedToday = LearningEvent::where('user_id', $user->id)
-            ->where('type', 'lesson_completed')
-            ->whereDate('occurred_at', now()->toDateString())
-            ->count();
+        $entitlements = Entitlements::for($user);
 
         return response()->json(['data' => [
             'id' => $user->id,
@@ -33,10 +29,17 @@ class MeController extends Controller
                 // null for everyone on the free tier.
                 'plan' => $user->subscription()->exists() ? $user->plan()?->name : null,
             ],
+
+            // The full entitlement map, so the client can render locks before
+            // making a request. A feature that appears to work and then fails is
+            // how a paywall loses someone who was willing to pay.
+            'entitlements' => $entitlements->toArray(),
+
+            // Retained for older clients; `entitlements.limits` is authoritative.
             'quota' => [
-                'free_lessons_per_day' => $freeLimit,
-                'used_today' => $usedToday,
-                'remaining' => $user->hasPremiumAccess() ? null : max(0, $freeLimit - $usedToday),
+                'free_lessons_per_day' => $entitlements->limit('lessons_per_day'),
+                'used_today' => $entitlements->lessonsUsedToday(),
+                'remaining' => $entitlements->lessonsRemaining(),
             ],
             'active_enrollment' => $enrollment ? [
                 'exam' => [

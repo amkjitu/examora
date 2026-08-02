@@ -7,6 +7,8 @@ use App\Models\Examora\Exam;
 use App\Models\Examora\TopicPrediction;
 use App\Services\Prediction\PredictionEngine;
 use App\Services\Prediction\RepeatPredictor;
+use App\Support\Entitlements;
+use App\Support\Feature;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -37,6 +39,8 @@ class PredictionController extends Controller
         $mastery = $request->user()
             ? $request->user()->topicMastery()->where('exam_id', $exam->id)->get()->keyBy('topic_id')
             : collect();
+
+        $entitlements = Entitlements::for($request->user());
 
         return response()->json(['data' => [
             'exam' => ['id' => $exam->id, 'name' => $exam->name, 'slug' => $exam->slug],
@@ -74,21 +78,34 @@ class PredictionController extends Controller
                 'mastery' => round((float) ($mastery[$p->topic_id]->mastery ?? 0), 2),
             ]),
 
-            'repeat_candidates' => $this->repeats->candidates($exam, 20)->map(fn (array $c) => [
-                'past_question_id' => $c['past_question_id'],
-                'stem' => $c['stem'],
-                'answer' => $c['answer'],
-                'explanation' => $c['explanation'],
-                'topic' => $c['topic'],
-                'years' => $c['years'],
-                'appearances' => $c['appearances'],
-                'last_seen' => $c['last_seen'],
-                'mean_gap_years' => $c['mean_gap_years'],
-                'score' => $c['score'],
-                'reworded' => $c['reworded'],
-                'evidence' => $c['evidence'],
-            ]),
+            // The ranked topic forecast is open — it is the clearest argument
+            // for paying, and hiding it would hide the moat. Repeat candidates,
+            // the part actually worth memorising, are premium.
+            'repeat_candidates_locked' => ! $entitlements->allows(Feature::REPEAT_CANDIDATES),
+
+            'repeat_candidates' => $entitlements->allows(Feature::REPEAT_CANDIDATES)
+                ? $this->repeatCandidates($exam)
+                : [],
         ]]);
+    }
+
+    /** @return array<int, array<string, mixed>> */
+    private function repeatCandidates(Exam $exam): array
+    {
+        return $this->repeats->candidates($exam, 20)->map(fn (array $c) => [
+            'past_question_id' => $c['past_question_id'],
+            'stem' => $c['stem'],
+            'answer' => $c['answer'],
+            'explanation' => $c['explanation'],
+            'topic' => $c['topic'],
+            'years' => $c['years'],
+            'appearances' => $c['appearances'],
+            'last_seen' => $c['last_seen'],
+            'mean_gap_years' => $c['mean_gap_years'],
+            'score' => $c['score'],
+            'reworded' => $c['reworded'],
+            'evidence' => $c['evidence'],
+        ])->all();
     }
 
     /**

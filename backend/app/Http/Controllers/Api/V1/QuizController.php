@@ -9,6 +9,8 @@ use App\Models\Examora\QuizSession;
 use App\Models\Examora\Topic;
 use App\Services\Learning\MockAnalyser;
 use App\Services\Learning\QuizEngine;
+use App\Support\Entitlements;
+use App\Support\Feature;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use RuntimeException;
@@ -34,6 +36,25 @@ class QuizController extends Controller
 
         $user = $request->user();
         $count = $validated['count'] ?? null;
+
+        // Gated here rather than on the route, because one endpoint serves four
+        // quiz types and only mock exams are premium. Practice and revision stay
+        // open on every plan — walling revision would cost a student marks, and
+        // they carry no marginal serving cost anyway.
+        if ($validated['type'] === QuizSession::TYPE_MOCK) {
+            $entitlements = Entitlements::for($user);
+
+            if (! $entitlements->allows(Feature::MOCK_EXAM)) {
+                return response()->json([
+                    'message' => 'Mock exams are not included in your '.$entitlements->label().' plan.',
+                    'code' => 'feature_not_included',
+                    'feature' => Feature::MOCK_EXAM,
+                    'feature_label' => Feature::label(Feature::MOCK_EXAM),
+                    'current_tier' => $entitlements->tierKey(),
+                    'upgrade_url' => config('examora.upgrade_url'),
+                ], 402);
+            }
+        }
 
         try {
             $session = match ($validated['type']) {

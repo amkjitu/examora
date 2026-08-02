@@ -2,41 +2,49 @@
 
 namespace App\Http\Middleware;
 
-use App\Models\Examora\LearningEvent;
+use App\Support\Entitlements;
 use Closure;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
 
 /**
- * Free tier is metered, not walled.
+ * The free tier is metered, not walled.
  *
  * A candidate who cannot try the product will not subscribe to it, so free users
  * get a real daily allowance of lessons and are told exactly where they stand.
- * Subscribers and trial users pass straight through.
+ * The allowance comes from the tier definition rather than a standalone config
+ * value, so pricing lives in one place.
  */
 class EnforceLessonQuota
 {
     public function handle(Request $request, Closure $next): Response
     {
-        $user = $request->user();
+        $entitlements = Entitlements::for($request->user());
+        $limit = $entitlements->limit('lessons_per_day');
 
-        if (! $user || $user->hasPremiumAccess()) {
+        // Unlimited.
+        if ($limit === null) {
             return $next($request);
         }
 
-        $limit = (int) config('examora.free_lessons_per_day', 3);
+        $used = $entitlements->lessonsUsedToday();
 
-        $usedToday = LearningEvent::where('user_id', $user->id)
-            ->where('type', 'lesson_completed')
-            ->whereDate('occurred_at', now()->toDateString())
-            ->count();
-
-        if ($usedToday >= $limit) {
+        if ($used >= $limit) {
             return response()->json([
-                'message' => "You've used all {$limit} free lessons for today.",
+                'message' => "You've used all {$limit} lessons on your "
+                    .$entitlements->label().' plan for today.',
                 'code' => 'lesson_quota_exceeded',
-                'quota' => ['limit' => $limit, 'used' => $usedToday, 'resets_at' => now()->addDay()->startOfDay()->toIso8601String()],
+                'current_tier' => $entitlements->tierKey(),
+                'upgrade_url' => config('examora.upgrade_url'),
+                'quota' => [
+                    'limit' => $limit,
+                    'used' => $used,
+                    'resets_at' => now()->addDay()->startOfDay()->toIso8601String(),
+                ],
+                // Said explicitly because a quota message that reads like a hard
+                // stop makes people leave. Revision is what keeps their marks.
+                'still_available' => 'Practice and revision are unlimited on every plan.',
             ], 402);
         }
 
@@ -44,7 +52,7 @@ class EnforceLessonQuota
 
         if ($response instanceof JsonResponse) {
             $response->headers->set('X-Examora-Lesson-Quota-Limit', (string) $limit);
-            $response->headers->set('X-Examora-Lesson-Quota-Used', (string) $usedToday);
+            $response->headers->set('X-Examora-Lesson-Quota-Used', (string) $used);
         }
 
         return $response;

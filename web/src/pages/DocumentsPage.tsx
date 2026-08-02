@@ -4,8 +4,11 @@ import { useNavigate } from 'react-router-dom'
 import { api, getToken } from '@/lib/api'
 import type { Exam, MyQuestions, QuizSession, SourceDocument } from '@/lib/types'
 import { Button, Card, ErrorNote, Progress, Spinner } from '@/components/ui'
+import { Locked } from '@/components/Locked'
+import { useEntitlements } from '@/lib/entitlements'
 
 export default function DocumentsPage() {
+  const { can } = useEntitlements()
   const queryClient = useQueryClient()
   const fileInput = useRef<HTMLInputElement>(null)
 
@@ -80,6 +83,15 @@ export default function DocumentsPage() {
         </p>
       </Card>
 
+      {!can('document_upload') ? (
+        <div className="mt-4">
+          <Locked title="Upload your own material">
+            Send a question paper or your own notes and Examora reads it, pulls out every question
+            and files each one against the syllabus — ready to practise. Anything you already
+            uploaded stays readable below.
+          </Locked>
+        </div>
+      ) : (
       <Card className="mt-4">
         <h2 className="font-semibold text-ink-900">Upload a PDF</h2>
 
@@ -140,6 +152,7 @@ export default function DocumentsPage() {
           Upload and process
         </Button>
       </Card>
+      )}
 
       <h2 className="mt-8 font-semibold text-ink-900">Uploaded</h2>
 

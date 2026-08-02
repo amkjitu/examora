@@ -37,9 +37,11 @@ a deterministic `mock` driver that builds its output from real database context.
 | Mock exams (two modes, server clock, negative marking, 4-part analysis) | `QuizEngine`, `MockAnalyser` | Working |
 | Document ingestion (PDF → text/vision → questions → review queue) | `App\Services\Ingestion` | Working |
 | Prediction engine (topic forecast + verbatim repeats, backtested) | `App\Services\Prediction` | Working |
+| Tiers, entitlements and feature gating | `App\Support\Entitlements` | Working |
+| Payments (Stripe/Paddle credentials, checkout, bKash) | Wave | **Not live** |
 | JSON API | `routes/api.php` → `/api/v1/*` | Working |
 | React SPA | `web/` | Working |
-| Test suite | `backend/tests` | 224 passing |
+| Test suite | `backend/tests` | 262 passing |
 
 Not built yet: Bangla, React Native shell, payment go-live. See
 [`docs/roadmap.md`](docs/roadmap.md).
@@ -96,7 +98,7 @@ Then regenerate: `php artisan examora:bootstrap --force-lessons`.
 ### Tests
 
 ```bash
-cd backend && php artisan test     # 172 passing
+cd backend && php artisan test     # 262 passing
 cd web && npm run build            # type-check + bundle
 ```
 
@@ -134,6 +136,7 @@ stars, and a content editor must be able to argue with it.
 | [`docs/api.md`](docs/api.md) | Endpoint reference |
 | [`docs/testing.md`](docs/testing.md) | How to run the suite, and a manual walkthrough of every feature |
 | [`docs/corpus.md`](docs/corpus.md) | Importing a real question bank, and checking it is fit to score |
+| [`docs/saas.md`](docs/saas.md) | Tiers, entitlements, feature gating — and what is still missing for payments |
 | [`docs/decisions.md`](docs/decisions.md) | Decision log, including deviations from the original plan |
 | [`docs/roadmap.md`](docs/roadmap.md) | What is built, what is next, in what order |
 

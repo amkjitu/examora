@@ -1,6 +1,8 @@
 <?php
 
 use App\Http\Middleware\EnforceLessonQuota;
+use App\Http\Middleware\OptionalJwtUser;
+use App\Http\Middleware\RequiresFeature;
 use App\Providers\AppServiceProvider;
 use DevDojo\Themes\ThemesServiceProvider;
 use Filament\Http\Middleware\DisableBladeIconComponents;
@@ -43,6 +45,8 @@ return Application::configure(basePath: dirname(__DIR__))
 
         $middleware->alias([
             'lesson.quota' => EnforceLessonQuota::class,
+            'feature' => RequiresFeature::class,
+            'jwt.optional' => OptionalJwtUser::class,
         ]);
 
         $middleware->throttleApi();

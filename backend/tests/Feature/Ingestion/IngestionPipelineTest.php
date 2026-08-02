@@ -6,14 +6,18 @@ use App\Models\Examora\ExtractedQuestion;
 use App\Models\Examora\PastQuestion;
 use App\Models\Examora\Question;
 use App\Models\Examora\SourceDocument;
+use App\Models\User;
 use App\Services\Ingestion\DocumentReviewer;
 use App\Services\Ingestion\QuestionExtractor;
 use App\Services\Learning\QuizEngine;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
 use Tests\Examora;
 use Tymon\JWTAuth\Facades\JWTAuth;
+use Wave\Plan;
+use Wave\Subscription;
 
 /**
  * A page of exam text in the layout real papers use: numbered questions,
@@ -396,11 +400,35 @@ it('rejects a question with a reviewer note', function () {
         ]))->toThrow(RuntimeException::class, 'already been reviewed');
 });
 
+/**
+ * Uploading is premium, so an upload test needs a subscribed uploader.
+ * Wave keys subscriptions on billable_id/billable_type and caches subscriber()
+ * for five minutes, hence the flush.
+ */
+function subscribeUploader(User $user): void
+{
+    Subscription::create([
+        'billable_id' => $user->id,
+        'billable_type' => 'user',
+        'plan_id' => Plan::first()?->id ?? 1,
+        'vendor_transaction_id' => 'test_'.uniqid(),
+        'vendor_customer_id' => 'cus_test',
+        'vendor_user_id' => (string) $user->id,
+        'vendor_slug' => 'stripe',
+        'status' => 'active',
+        'plan' => 'Premium',
+        'cycle' => 'month',
+    ]);
+
+    Cache::flush();
+}
+
 it('accepts an upload, quarantines it, and queues it for processing', function () {
     Storage::fake('local');
     Queue::fake();
 
-    $token = JWTAuth::fromUser($this->owner);
+    subscribeUploader($this->owner);
+    $token = JWTAuth::fromUser($this->owner->fresh());
 
     $response = $this->post('/api/v1/documents', [
         'file' => UploadedFile::fake()->create('bcs-44.pdf', 200, 'application/pdf'),
@@ -419,7 +447,8 @@ it('recognises a re-uploaded file instead of paying to read it twice', function 
     Storage::fake('local');
     Queue::fake();
 
-    $token = JWTAuth::fromUser($this->owner);
+    subscribeUploader($this->owner);
+    $token = JWTAuth::fromUser($this->owner->fresh());
     $headers = ['Authorization' => 'Bearer '.$token, 'Accept' => 'application/json'];
 
     $file = UploadedFile::fake()->createWithContent('bcs-44.pdf', 'identical bytes');
