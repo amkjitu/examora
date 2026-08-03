@@ -18,10 +18,9 @@ use Spatie\Permission\Models\Role;
 use Wave\Plan;
 use Wave\Subscription;
 
+// See PlanSwitchingTest: the schema is built before PHPUnit starts and each
+// test is wrapped in a transaction, so there is nothing to rebuild here.
 beforeEach(function () {
-    $this->artisan('migrate:fresh');
-    $this->seed();
-
     // Create test roles
     $this->premiumRole = Role::firstOrCreate(
         ['name' => 'test_premium'],

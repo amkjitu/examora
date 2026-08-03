@@ -30,10 +30,10 @@ did not find.
 | Micro-lesson generation | 🟢 | `StudentJourneyTest`, 10 lesson calls; caching and grounding both asserted |
 | MCQ quiz + explanations | 🟢 | 30 quiz calls, 10 answer calls |
 | SM-2 spaced repetition | 🟢 | `RevisionSchedulerTest` (4) — curve, lapses, ease floor |
-| Daily planner | 🟠 | **`DailyPlanner` is not named in any test.** Exercised only incidentally through the dashboard |
-| Readiness / mastery | 🟠 | **`ProgressTracker` is not named in any test.** The mastery formula (accuracy + coverage + retention) is unasserted |
-| Dashboard | 🟡 | 2 calls; the shape is checked, the numbers are not |
-| Gamification (XP, streak, level) | 🟡 | Asserted incidentally in the journey test; no direct test of the level curve or streak-break logic |
+| Daily planner | 🟢 | `DailyPlannerTest` (14) — priority order, the days-left star filter, the minute budget, plan reuse |
+| Readiness / mastery | 🟢 | `ProgressTrackerTest` (11) — the mastery blend, and that readiness is weighted by what the exam asks |
+| Dashboard | 🟡 | 2 calls; the shape is checked, the numbers are now asserted at the service below it |
+| Gamification (XP, streak, level) | 🟢 | `ProgressTrackerTest` — XP split, streak break vs extend, widening level gaps |
 
 ### Mock exams
 
@@ -43,7 +43,7 @@ did not find.
 | Server-authoritative clock, resume, auto-submit | 🟢 | Covered including tab-close and expiry |
 | Negative marking | 🟢 | Including the negative-score case |
 | Answer-key suppression in strict mode | 🟢 | Asserted absent from the payload |
-| Four-part analysis | 🟡 | 5 analysis calls cover subjects, review, pacing, readiness — but **`MockAnalyser` has no direct unit test**, so the pacing thresholds and subject arithmetic are only checked end to end |
+| Four-part analysis | 🟢 | `MockAnalyserTest` (11) — subject split, a skipped question is not a wrong one, accuracy on attempted, time sinks vs rushed mistakes |
 
 ### Document ingestion
 
@@ -84,7 +84,7 @@ did not find.
 | Prompt caching | 🟢 | Including zero-cost billing on a hit |
 | Mock provider | 🟢 | Exercised by every other test |
 | **Real providers (OpenAI/Gemini/Anthropic)** | 🟠 | **Never called for real.** Request shaping is unverified against live APIs — only the mock path is proven |
-| RAG retrieval | 🟡 | `Retriever` referenced once; **the pgvector path is never asserted**, only the SQLite fallback |
+| RAG retrieval | 🟡 | `Retriever` referenced once. The suite now runs against pgvector in CI, so the real vector column and HNSW index are exercised — but no test asserts ANN ranking specifically |
 
 ### Monetisation
 
@@ -92,7 +92,7 @@ did not find.
 |---|---|---|
 | Tiers, entitlements, feature gating | 🟢 | `EntitlementsTest` (19), both directions |
 | Free-tier metering | 🟢 | |
-| SPA locks and upgrade paths | 🟠 | No frontend tests at all |
+| SPA locks and upgrade paths | 🟢 | `Locked.test` (7) — a gate stays shut while loading and on failure; `LessonPage.test` (4) — the 402 path |
 | **Stripe / Paddle checkout** | ⛔ | Placeholder keys, `dummy_*` price IDs, never exercised |
 | **Webhooks** | ⛔ | Wave has tests; ours are unverified against a real event |
 | **bKash / Nagad** | 🔴 | Custom Cashier driver. The largest remaining piece |
@@ -111,13 +111,15 @@ did not find.
 
 ## 2. Testing: what exists
 
-**262 passing.** Roughly split:
+**298 backend, 24 frontend.** The backend suite runs twice in CI — once on
+SQLite, once on PostgreSQL + pgvector — because the two genuinely diverge.
 
 | | Count |
 |---|---|
-| Examora's own tests | ~111 |
+| Examora's own backend tests | ~147 |
 | Wave's inherited suite | ~107 |
 | Pest/Wave scaffolding | remainder |
+| Frontend (Vitest) | 24 |
 
 | File | Tests |
 |---|---|
@@ -125,13 +127,34 @@ did not find.
 | `Domain/CorpusToolingTest` | 19 |
 | `Ingestion/IngestionPipelineTest` | 18 |
 | `Domain/PredictionEngineTest` | 14 |
+| `Domain/DailyPlannerTest` | 14 |
 | `Api/MockExamTest` | 12 |
+| `Domain/ProgressTrackerTest` | 11 |
+| `Domain/MockAnalyserTest` | 11 |
 | `Domain/NearDuplicateTest` | 8 |
 | `Api/StudentJourneyTest` | 6 |
 | `Domain/AiGatewayTest` | 5 |
 | `Domain/RevisionSchedulerTest` | 4 |
 | `Domain/TopicImportanceScorerTest` | 4 |
 | `Api/FreeTierQuotaTest` | 2 |
+| `web/pages/MockExamPage.test` | 11 |
+| `web/components/Locked.test` | 7 |
+| `web/pages/LessonPage.test` | 4 |
+
+### What the new tests caught
+
+Writing them was not a formality:
+
+- **`DailyPlanner` looked up today's plan by string equality on a `date`
+  column.** PostgreSQL normalises the value so it matched; SQLite stored
+  `2026-08-03 00:00:00`, missed, and tried to insert a duplicate. Fixed with
+  `whereDate`.
+- **`RolesTableSeeder` deleted every row before reinserting**, which
+  `plans.role_id` references. Re-seeding therefore failed on any database that
+  enforces foreign keys. Now an upsert.
+- **Two Wave test files ran `migrate:fresh` inside a transaction**, and
+  `UsernameUpdateTest` depended on a user leaked from another file. All three
+  passed on SQLite by accident and failed on PostgreSQL.
 
 ---
 
@@ -139,51 +162,32 @@ did not find.
 
 Ordered by how much damage the gap can hide.
 
-### 🔴 Priority 1 — no frontend tests whatsoever
+### 🔴 Priority 1 — no end-to-end test
 
-```
-frontend test files: 0
-e2e test files:      0
-```
+Component tests now cover the timer, the locks and the 402 path, but nothing
+exercises a whole journey through the real API. Integration breaks — a changed
+response shape, a route that stops resolving — sit between the layers both
+suites test.
 
-Every UI behaviour is verified by hand and nothing stops a regression. The
-riskiest are the ones where the UI carries real correctness:
+**What to add:** Playwright, one journey: sign in → lesson → quiz → mock →
+analysis.
 
-- **The mock exam timer.** Countdown, auto-submit at zero, resume after a tab
-  close, and the answer-sheet grid. A silent break here loses a student a paper.
-- **Entitlement locks.** They default to closed while loading; a change that
-  flips the default would leak premium features and no test would notice.
-- **Strict mode.** The client must not render feedback it does not receive.
-- **Quota and 402 handling.** A blank screen instead of an upgrade prompt is a
-  lost customer.
-
-**What to add:** Vitest + Testing Library for the timer, locks and 402 handling;
-Playwright for one full journey (sign in → lesson → quiz → mock → analysis).
-
-### 🟠 Priority 2 — untested backend classes that produce numbers students act on
+### 🟠 Priority 2 — remaining untested classes
 
 | Class | What is unasserted |
 |---|---|
-| `ProgressTracker` | The mastery blend (0.45 accuracy + 0.25 coverage + 0.30 retention) and the readiness weighting. **These drive the readiness score a student plans around.** |
-| `DailyPlanner` | The time-pressure filter — with ≤14 days it should hard-filter to ★★★★+. Nothing checks that it does |
-| `MockAnalyser` | Pacing thresholds and subject-breakdown arithmetic |
 | `PageExtractor` | The text-layer vs vision decision, and the vision fallback |
-
-Each is a couple of hours and closes a gap where a wrong number would look
-perfectly plausible.
+| `ProcessSourceDocument::failed()` | Never invoked in a test |
+| 51 Filament classes | The review queue is where a human prevents a bad answer key entering the corpus; if the approve button silently breaks, nothing catches it |
 
 ### 🟠 Priority 3 — paths that only run in production
 
 - **Real LLM providers.** Request shaping for OpenAI, Gemini and Anthropic has
   never been checked against a live API. Add contract tests using recorded
   fixtures, or a `--live` suite run manually with keys.
-- **pgvector retrieval.** CI migrates and seeds against Postgres but never runs
-  the suite there, so the ANN path is never exercised. One CI job change.
-- **Queue failure handling.** `ProcessSourceDocument::failed()` is never invoked
-  in a test.
-- **51 Filament classes, 0 tests.** The review queue is where a human prevents a
-  bad answer key entering the corpus; if the approve button silently breaks,
-  nothing catches it.
+- **pgvector ranking.** The suite now runs against pgvector in CI, so the column
+  and index are exercised — but no test asserts that ANN retrieval returns the
+  right neighbours, only that it returns something.
 
 ### 🟡 Priority 4 — thin coverage on working features
 
@@ -199,14 +203,14 @@ perfectly plausible.
 
 | # | Work | Effort | Why now |
 |---|---|---|---|
-| 1 | Vitest + Testing Library: timer, locks, 402 handling | ~half a day | Highest-risk untested surface |
-| 2 | Direct tests for `ProgressTracker`, `DailyPlanner`, `MockAnalyser` | ~half a day | These produce numbers students plan around |
-| 3 | CI job running the full suite on Postgres | ~1 hour | Exercises pgvector; would have caught the `HAVING` bug |
+| ~~1~~ | ~~Vitest + Testing Library: timer, locks, 402 handling~~ | done | 24 tests |
+| ~~2~~ | ~~Direct tests for `ProgressTracker`, `DailyPlanner`, `MockAnalyser`~~ | done | 36 tests; found a real date bug |
+| ~~3~~ | ~~CI job running the full suite on Postgres~~ | done | Found three more |
 | 4 | Playwright: one end-to-end journey | ~half a day | Catches integration breaks nothing else sees |
 | 5 | Filament smoke tests (queue loads, approve works) | ~2 hours | Protects the corpus gate |
 | 6 | Provider contract tests with recorded fixtures | ~half a day | The only untested path that costs money when wrong |
 
-Items 1–3 are the ones I would not ship without.
+Items 1–3 were the ones I would not have shipped without. They are done.
 
 ---
 

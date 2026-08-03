@@ -3,6 +3,22 @@
 use App\Models\User;
 use Illuminate\Database\QueryException;
 
+/**
+ * Returns two distinct users.
+ *
+ * The seed creates exactly one — admin — so these tests used to pass only
+ * because an earlier test file left a factory user behind. That made them pass
+ * on SQLite and fail on PostgreSQL for reasons that had nothing to do with
+ * usernames. Creating the second user here makes the tests say what they mean.
+ */
+function twoUsers(): array
+{
+    return [
+        User::where('email', 'admin@admin.com')->firstOrFail(),
+        User::factory()->create(),
+    ];
+}
+
 it('allows user to update their username', function () {
     // Use an existing seeded user (admin user from seed)
     $user = User::where('email', 'admin@admin.com')->first();
@@ -24,10 +40,7 @@ it('allows user to update their username', function () {
 });
 
 it('validates username is unique when updating', function () {
-    // Get two seeded users
-    $users = User::limit(2)->get();
-    $user1 = $users[0];
-    $user2 = $users[1];
+    [$user1, $user2] = twoUsers();
 
     $this->actingAs($user1);
 
@@ -78,9 +91,7 @@ it('user can keep their current username when updating profile', function () {
 });
 
 it('multiple users can update their usernames independently', function () {
-    $users = User::limit(2)->get();
-    $user1 = $users[0];
-    $user2 = $users[1];
+    [$user1, $user2] = twoUsers();
 
     $original1 = $user1->username;
     $original2 = $user2->username;

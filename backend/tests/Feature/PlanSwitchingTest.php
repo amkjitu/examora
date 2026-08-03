@@ -15,10 +15,16 @@ use Spatie\Permission\Models\Role;
 use Wave\Plan;
 use Wave\Subscription;
 
+/*
+ * No `migrate:fresh` here, deliberately.
+ *
+ * The database is already migrated and seeded before PHPUnit starts (see
+ * tests/bootstrap.php and the backend-postgres CI job) and every test runs
+ * inside a transaction, so rebuilding the schema mid-suite is both unnecessary
+ * and incoherent: it commits DDL inside an open transaction, and on a database
+ * that enforces foreign keys the re-seed fails outright.
+ */
 beforeEach(function () {
-    $this->artisan('migrate:fresh');
-    $this->seed();
-
     // Create test user
     $this->user = User::factory()->create();
     $this->actingAs($this->user);

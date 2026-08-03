@@ -44,11 +44,23 @@ class DailyPlanner
     {
         $date = ($date ?? now())->startOfDay();
 
-        $plan = StudyPlan::firstOrNew([
-            'user_id' => $user->id,
-            'exam_id' => $enrollment->exam_id,
-            'plan_date' => $date->toDateString(),
-        ]);
+        // whereDate, not an equality match on the attribute.
+        //
+        // PostgreSQL normalises a `date` column so a string comparison happens
+        // to work; SQLite stores whatever it was given — "2026-08-03 00:00:00"
+        // — and the lookup silently misses, so a second call for the same day
+        // tries to insert a duplicate and hits the unique constraint.
+        // `whereDate` compiles correctly on both.
+        $plan = StudyPlan::query()
+            ->where('user_id', $user->id)
+            ->where('exam_id', $enrollment->exam_id)
+            ->whereDate('plan_date', $date->toDateString())
+            ->first()
+            ?? new StudyPlan([
+                'user_id' => $user->id,
+                'exam_id' => $enrollment->exam_id,
+                'plan_date' => $date->toDateString(),
+            ]);
 
         if ($plan->exists && ! $force) {
             return $plan->load('items.topic', 'items.lesson');

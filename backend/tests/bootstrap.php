@@ -14,6 +14,11 @@
  *
  * The file is rebuilt automatically whenever a migration or seeder is newer
  * than it, so there is nothing to remember to run by hand.
+ *
+ * Running against another driver — `DB_CONNECTION=pgsql php artisan test`, as
+ * CI does to exercise pgvector — skips all of this. There the database is
+ * migrated and seeded by the caller before PHPUnit starts, for the same reason:
+ * it has to be populated before Wave boots.
  */
 
 // Filament and Livewire boot a large object graph per test; the stock 128M is
@@ -21,6 +26,11 @@
 ini_set('memory_limit', '512M');
 
 require __DIR__.'/../vendor/autoload.php';
+
+// Another driver is in play; the caller owns the schema.
+if (! in_array(getenv('DB_CONNECTION') ?: 'sqlite', ['sqlite', ''], true)) {
+    return;
+}
 
 $root = dirname(__DIR__);
 $database = $root.'/database/testing.sqlite';
