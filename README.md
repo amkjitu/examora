@@ -138,6 +138,7 @@ stars, and a content editor must be able to argue with it.
 | [`docs/corpus.md`](docs/corpus.md) | Importing a real question bank, and checking it is fit to score |
 | [`docs/saas.md`](docs/saas.md) | Tiers, entitlements, feature gating — and what is still missing for payments |
 | [`docs/decisions.md`](docs/decisions.md) | Decision log, including deviations from the original plan |
+| [`docs/status.md`](docs/status.md) | Feature-by-feature state, test coverage, and the gaps |
 | [`docs/roadmap.md`](docs/roadmap.md) | What is built, what is next, in what order |
 
 ---
