@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { screen, waitFor, act } from '@testing-library/react'
+import { screen, waitFor, act, fireEvent } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import MockExamPage from './MockExamPage'
 import { renderApp, stubFetch } from '@/test/harness'
@@ -64,6 +64,25 @@ async function tick(seconds: number) {
   }
 }
 
+/**
+ * Renders with the clock fully frozen and waits for the paper to load.
+ *
+ * `shouldAdvanceTime` lets real time leak into the fake clock, so a slow first
+ * render (a cold CI runner) silently spends seconds of the countdown before the
+ * test starts counting. Freezing the clock and flushing the fetch by hand makes
+ * every second in these tests one the test chose to spend.
+ */
+async function renderFrozen(data: QuizSession) {
+  vi.useFakeTimers()
+  render(data)
+
+  for (let i = 0; i < 10 && !screen.queryByRole('timer'); i++) {
+    await act(() => vi.advanceTimersByTimeAsync(0))
+  }
+
+  return screen.getByRole('timer')
+}
+
 const render = (data: QuizSession, extraRoutes: Parameters<typeof stubFetch>[0] = []) => {
   const calls = stubFetch([
     { match: '/api/v1/quizzes/7', method: 'GET', body: { data } },
@@ -83,14 +102,26 @@ describe('mock exam timer', () => {
   })
 
   it('counts down once per second', async () => {
-    vi.useFakeTimers({ shouldAdvanceTime: true })
-
-    render(session({ seconds_remaining: 90 }))
-
-    const timer = await screen.findByRole('timer')
+    const timer = await renderFrozen(session({ seconds_remaining: 90 }))
     expect(timer).toHaveTextContent('1:30')
 
     await tick(3)
+
+    expect(timer).toHaveTextContent('1:27')
+  })
+
+  it('keeps real time when the page re-renders mid-second', async () => {
+    const timer = await renderFrozen(session({ seconds_remaining: 90 }))
+
+    // Re-render every half second. Each re-render used to restart the second in
+    // progress, so a student who kept working watched a clock that barely moved
+    // while the server's deadline did not wait.
+    for (let i = 0; i < 6; i++) {
+      await act(async () => {
+        vi.advanceTimersByTime(500)
+      })
+      fireEvent.click(screen.getByRole('button', { name: /flag/i }))
+    }
 
     expect(timer).toHaveTextContent('1:27')
   })

@@ -17,9 +17,10 @@ Nothing is 1.0 until the question corpus is verified — see
   (`web/src/test/harness.tsx`) that renders a page inside a router and a fresh
   query client and stubs `fetch` with a route table that throws on an unmatched
   request — a test cannot pass because nothing was called.
-  - `MockExamPage.test` (11): countdown, auto-submit at zero and only once,
+  - `MockExamPage.test` (12): countdown, auto-submit at zero and only once,
     strict mode renders no feedback, resume restores answers and trusts the
-    server clock, answer sheet.
+    server clock, answer sheet, and the clock keeping real time across
+    re-renders.
   - `Locked.test` (7): a gate stays shut while entitlements are loading and when
     the request fails — the failure mode is locked, not open.
   - `LessonPage.test` (4): a 402 arrives as an explanation with a way forward,
@@ -32,6 +33,23 @@ Nothing is 1.0 until the question corpus is verified — see
 
 ### Fixed
 
+- **The mock exam clock ran slow.** `useMutation` returns a new object every
+  render, so the countdown effect was torn down and its one-second timeout
+  restarted on every re-render — answering, flagging, a refetch. The display
+  fell behind the server's deadline, and a student could be auto-submitted
+  with time still showing. The countdown is now derived from a wall-clock
+  deadline, so re-renders cannot hold it back.
+- **CI could not pass from a clean checkout.** `web/package-lock.json`, written
+  on macOS, lacked Linux-only optional packages that `npm ci` requires; the
+  backend matrix included PHP 8.2, which the locked PHPUnit 12 cannot install
+  on; and Wave's page tests needed a Vite manifest that only exists after a
+  local build. The lock is regenerated on Linux, the matrix is PHP 8.3 / 8.4
+  with `composer.json` requiring `^8.3` to match, and tests call
+  `withoutVite()`.
+- **Timer tests depended on machine speed.** `shouldAdvanceTime` let real
+  render time leak into the fake clock, so a cold runner spent part of the
+  countdown before the test began. Those tests now run on a fully frozen
+  clock.
 - **`DailyPlanner` could not find the plan it had just written.** It matched
   today's plan by string equality on a `date` column. PostgreSQL normalises the
   value so the lookup happened to work; SQLite stored

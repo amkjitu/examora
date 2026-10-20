@@ -18,6 +18,10 @@ export default function MockExamPage() {
   const [showGrid, setShowGrid] = useState(false)
   const shownAt = useRef(Date.now())
   const submitted = useRef(false)
+  // Wall-clock moment the paper closes. The countdown is derived from this
+  // rather than from chained one-second timeouts, so nothing that re-renders
+  // the page can slow the clock down.
+  const deadline = useRef<number | null>(null)
 
   const { data: session, isLoading, error } = useQuery({
     queryKey: ['mock', sessionId],
@@ -33,19 +37,28 @@ export default function MockExamPage() {
     },
   })
 
+  // `useMutation` returns a new object every render, but `mutate` is stable.
+  // Depending on the object would recreate `submit` on every render.
+  const { mutate: sendComplete } = complete
+
   const submit = useCallback(() => {
     if (submitted.current) return
 
     submitted.current = true
-    complete.mutate()
-  }, [complete])
+    sendComplete()
+  }, [sendComplete])
+
+  const syncClock = useCallback((remaining: number | null) => {
+    deadline.current = remaining === null ? null : Date.now() + remaining * 1000
+    setSeconds(remaining)
+  }, [])
 
   // Seed local state from the server, including any answers given before the
   // tab was closed — a resumed paper picks up exactly where it was left.
   useEffect(() => {
     if (!session) return
 
-    setSeconds(session.seconds_remaining)
+    syncClock(session.seconds_remaining)
 
     const restored: Record<number, number> = {}
     for (const question of session.questions) {
@@ -57,12 +70,13 @@ export default function MockExamPage() {
     setIndex(firstUnanswered === -1 ? 0 : firstUnanswered)
 
     if (session.completed_at) navigate(`/mock/${sessionId}/analysis`, { replace: true })
-  }, [session, navigate, sessionId])
+  }, [session, navigate, sessionId, syncClock])
 
   // Local countdown for display only. The server rejects late answers regardless
   // of what this shows, so a tampered clock buys nothing.
   useEffect(() => {
-    if (seconds === null) return
+    const end = deadline.current
+    if (seconds === null || end === null) return
 
     if (seconds <= 0) {
       submit()
@@ -70,7 +84,13 @@ export default function MockExamPage() {
       return
     }
 
-    const timer = setTimeout(() => setSeconds((value) => (value === null ? null : value - 1)), 1000)
+    // Wake exactly when the display next needs to change. If the timer fires
+    // late (a throttled background tab), jump straight to the true value.
+    const wait = Math.max(0, end - Date.now() - (seconds - 1) * 1000)
+    const timer = setTimeout(() => {
+      const left = Math.max(0, Math.ceil((end - Date.now()) / 1000))
+      setSeconds((value) => (value === null ? null : Math.min(value - 1, left)))
+    }, wait)
 
     return () => clearTimeout(timer)
   }, [seconds, submit])
@@ -90,7 +110,7 @@ export default function MockExamPage() {
       ).data,
     onSuccess: (result) => {
       // Keep the timer honest with the server on every round trip.
-      if (result.seconds_remaining !== null) setSeconds(result.seconds_remaining)
+      if (result.seconds_remaining !== null) syncClock(result.seconds_remaining)
       if (result.mode === 'practice') setFeedback(result)
     },
   })
