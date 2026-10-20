@@ -8,14 +8,17 @@ use Illuminate\Support\Facades\DB;
 class RolesTableSeeder extends Seeder
 {
     /**
-     * Auto generated seed file
+     * Auto generated seed file.
+     *
+     * Upserts rather than deleting and reinserting. `plans.role_id` references
+     * this table, so `delete from roles` is a foreign-key violation on any
+     * database that enforces one — which means re-seeding fails on PostgreSQL
+     * and succeeds on SQLite only because the constraint is not enforced there.
+     * Upserting keeps the seeder idempotent without touching the referenced ids.
      */
     public function run(): void
     {
-
-        DB::table('roles')->delete();
-
-        DB::table('roles')->insert([
+        DB::table('roles')->upsert([
             0 => [
                 'id' => 1,
                 'guard_name' => 'web',
@@ -56,7 +59,6 @@ class RolesTableSeeder extends Seeder
                 'created_at' => '2018-07-03 16:27:16',
                 'updated_at' => '2018-07-03 17:28:38',
             ],
-        ]);
-
+        ], ['id'], ['guard_name', 'name', 'description', 'updated_at']);
     }
 }

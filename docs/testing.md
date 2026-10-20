@@ -7,21 +7,40 @@ Two ways in: the automated suite, and a manual walkthrough in the browser.
 ## 1. Automated
 
 ```bash
-cd backend && php artisan test        # 224 tests
+cd backend && php artisan test         # 298 tests
 cd backend && ./vendor/bin/pint --test # formatting
-cd web && npm run lint && npm run build
+cd web && npm run lint && npm test && npm run build   # 24 tests
 ```
 
 No services needed — the suite builds its own SQLite database
 (`tests/bootstrap.php`) and runs the AI gateway on the deterministic mock
 provider. Nothing costs money.
 
-To exercise the pgvector path that SQLite stands in for:
+### Against PostgreSQL
+
+SQLite forgives SQL that PostgreSQL rejects — a select alias in `HAVING`, a date
+column compared as a string — so the same suite runs against a real database
+too. Both bugs in that sentence were found this way, not by the SQLite run.
+
+`tests/bootstrap.php` only owns the SQLite file; against any other driver the
+schema is the caller's job, because Wave reads its theme and settings while
+booting and so needs a populated database before PHPUnit starts:
 
 ```bash
 cd docker && docker compose up -d
-cd ../backend && DB_CONNECTION=pgsql php artisan test
+cd ../backend
+createdb -h 127.0.0.1 -p 5433 -U examora examora_ci
+
+export DB_CONNECTION=pgsql DB_HOST=127.0.0.1 DB_PORT=5433 \
+       DB_DATABASE=examora_ci DB_USERNAME=examora DB_PASSWORD=secret
+php artisan migrate --force && php artisan db:seed --force
+php artisan test
 ```
+
+CI runs exactly this on `pgvector/pgvector:pg16`, then seeds the BCS corpus and
+runs `examora:bootstrap` on top — which is what exercises the real vector
+column, the HNSW index and the pgvector cosine search that the in-PHP fallback
+stands in for elsewhere.
 
 ### What the suite actually protects
 
@@ -34,7 +53,31 @@ cd ../backend && DB_CONNECTION=pgsql php artisan test
 | `Feature/Domain/PredictionEngineTest` | Overdue-ness, confidence on thin data, Poisson arithmetic, backtest |
 | `Feature/Domain/NearDuplicateTest` | Reworded repeats found, different questions kept apart, conflicting answers excluded, `past_questions` never written |
 | `Feature/Domain/RevisionSchedulerTest` | SM-2 curve, lapses, ease floor |
+| `Feature/Domain/ProgressTrackerTest` | Mastery is not accuracy alone, readiness weighted by what the exam asks, XP and streaks |
+| `Feature/Domain/DailyPlannerTest` | Priority order, the days-left star filter, the minute budget, every item has a reason |
+| `Feature/Domain/MockAnalyserTest` | Subject split, a skipped question is not a wrong one, accuracy on attempted, time sinks vs rushed mistakes |
 | `Feature/Domain/AiGatewayTest` | Provider fallback, caching, JSON extraction from messy output |
+
+The three domain files above test the numbers a student changes their revision
+on the back of. They were previously only covered end to end, which cannot tell
+a plausible-looking wrong number from a right one.
+
+### Frontend
+
+```bash
+cd web && npm test
+```
+
+Vitest with jsdom and Testing Library. `src/test/harness.tsx` renders a page
+inside a router and a fresh query client, and stubs `fetch` with a route table
+that **throws on an unmatched request** — otherwise a test can pass because
+nothing was ever called.
+
+| File | Guards |
+|---|---|
+| `pages/MockExamPage.test` | Countdown, auto-submit at zero and only once, strict mode shows no feedback, resume restores answers and trusts the server clock, answer sheet |
+| `components/Locked.test` | A gate stays shut while entitlements are loading and when the request fails — the failure mode is locked, not open |
+| `pages/LessonPage.test` | A 402 arrives as an explanation with a way forward, not a blank screen; other errors are not disguised as quota |
 
 ---
 

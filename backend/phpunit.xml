@@ -29,9 +29,13 @@
 
              The pgvector column and HNSW index are branched on driver in the
              knowledge_chunks migration, and retrieval falls back to an in-PHP
-             cosine scan. Run `DB_CONNECTION=pgsql php artisan test` against a
-             scratch Postgres database before release to exercise the vector
-             path itself. -->
+             cosine scan.
+
+             These two are deliberately not forced. PHPUnit leaves an env
+             variable alone if the shell already set one, so
+             `DB_CONNECTION=pgsql php artisan test` runs the same suite against
+             Postgres — which is what the backend-postgres CI job does, and what
+             catches the SQL that only SQLite forgives. -->
         <env name="DB_CONNECTION" value="sqlite"/>
         <env name="DB_DATABASE" value="database/testing.sqlite"/>
         <!-- Test-only JWT key. Must be >= 256 bits for HS256. -->
