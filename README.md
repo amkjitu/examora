@@ -59,6 +59,8 @@ cd docker && docker compose up -d
 # 2. Backend
 cd ../backend
 composer install
+php artisan key:generate
+php artisan jwt:secret
 php artisan migrate --seed                       # Wave base data
 php artisan db:seed --class=BcsPreliminarySeeder # BCS taxonomy + question corpus
 php artisan examora:bootstrap                    # index → score → forecast → lessons

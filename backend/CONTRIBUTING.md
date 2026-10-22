@@ -112,6 +112,7 @@ We actively welcome your pull requests! Here's how to submit one:
    ```bash
    cp .env.example .env
    php artisan key:generate
+   php artisan jwt:secret
    ```
 
 5. **Create database**:
